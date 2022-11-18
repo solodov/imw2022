@@ -1,27 +1,30 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Sheets API Quickstart</title>
+    <title>Sheets+Maps API Quickstart</title>
     <meta charset="utf-8" />
   </head>
   <body>
-    <p>Sheets API Quickstart</p>
-
-    <!--Add buttons to initiate auth sequence and sign out-->
-    <button id="authorize_button" onclick="handleAuthClick()">Authorize</button>
-    <button id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
+    <div style="width: 100%; display: table;">
+      <div style="display: table-row">
+        <div style="display: table-cell;">Sheets+Maps API Quickstart</div>
+        <div style="display: table-cell; text-align: right;">
+          <button id="authorize_button" onclick="handleAuthClick()">Authorize</button>
+          <button id="signout_button" onclick="handleSignoutClick()">Sign Out</button>
+        </div>
+      </div>
+    </div>
+    <div id="spreadsheet" style="width: 100%; white-space: nowrap;">
+      <label for="spreadsheet_url">Spreadsheet URL:</label>
+      <input type="text" id="spreadsheet_url" style="width: 80%"
+             value="https://docs.google.com/spreadsheets/d/1YVCsvSpJt5MFw8fplIMIx6GpbkkPfFOSKTjpG1zlTlY/edit#gid=1491315048" />
+      <button id="load_data_button" onclick="loadData()">Load</button>
+    </div>
 
     <pre id="content" style="white-space: pre-wrap;"></pre>
 
     <script type="text/javascript">
-      /* exported gapiLoaded */
-      /* exported gisLoaded */
-      /* exported handleAuthClick */
-      /* exported handleSignoutClick */
-
-      // TODO(developer): Set to client ID and API key from the Developer Console
-      const CLIENT_ID = '14555829151-74gbd8nabmfeh6r0tc3b6eovm51s52t7.apps.googleusercontent.com';
-      const API_KEY = '';
+      const CLIENT_ID = '757615654795-4upi495dkd0svl99e4kikgtni4fhbpu5.apps.googleusercontent.com';
 
       // Discovery doc URL for APIs used by the quickstart
       const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
@@ -36,6 +39,7 @@
 
       document.getElementById('authorize_button').style.visibility = 'hidden';
       document.getElementById('signout_button').style.visibility = 'hidden';
+      document.getElementById('spreadsheet').style.visibility = 'hidden';
 
       /**
        * Callback after api.js is loaded.
@@ -50,7 +54,6 @@
        */
       async function intializeGapiClient() {
         await gapi.client.init({
-          apiKey: API_KEY,
           discoveryDocs: [DISCOVERY_DOC],
         });
         gapiInited = true;
@@ -88,11 +91,16 @@
             throw (resp);
           }
           document.getElementById('signout_button').style.visibility = 'visible';
-          document.getElementById('authorize_button').innerText = 'Refresh';
-          await listMajors();
+          document.getElementById('authorize_button').innerText = 'Refresh Credentials';
+          document.getElementById('spreadsheet').style.visibility = 'visible';
+          window.localStorage.setItem('token', gapi.client.getToken());
         };
 
-        if (gapi.client.getToken() === null) {
+        let cachedToken = window.localStorage.getItem("token");
+        if (cachedToken !== null) {
+          gapi.client.setToken(cachedToken);
+          tokenClient.requestAccessToken({prompt: ''});
+        } else if (gapi.client.getToken() === null) {
           // Prompt the user to select a Google Account and ask for consent to share their data
           // when establishing a new session.
           tokenClient.requestAccessToken({prompt: 'consent'});
@@ -110,23 +118,25 @@
         if (token !== null) {
           google.accounts.oauth2.revoke(token.access_token);
           gapi.client.setToken('');
+          window.localStorage.removeItem('token');
           document.getElementById('content').innerText = '';
           document.getElementById('authorize_button').innerText = 'Authorize';
           document.getElementById('signout_button').style.visibility = 'hidden';
+          document.getElementById('spreadsheet').style.visibility = 'hidden';
         }
       }
 
       /**
-       * Print the names and majors of students in a sample spreadsheet:
-       * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
+       * Print data from the spreadsheet in the input box.
        */
-      async function listMajors() {
+      async function loadData() {
         let response;
+        const url = new URL(document.getElementById('spreadsheet_url').value);
+        let spreadsheetId = url.pathname.split('/')[3];
         try {
-          // Fetch first 10 files
           response = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: '1YVCsvSpJt5MFw8fplIMIx6GpbkkPfFOSKTjpG1zlTlY',
-            range: 'efxml_output0.csv!A2:E',
+            spreadsheetId: spreadsheetId,
+            range: 'A2:J',
           });
         } catch (err) {
           document.getElementById('content').innerText = err.message;
@@ -137,11 +147,10 @@
           document.getElementById('content').innerText = 'No values found.';
           return;
         }
-        // Flatten to string to display
-        const output = range.values.reduce(
-            (str, row) => `${str}${row[0]}, ${row[4]}\n`,
-            'Name, Major:\n');
-        document.getElementById('content').innerText = output;
+        for(let i = 0; i < range.values.length; i++) {
+          document.getElementById('content').innerText += range.values[i][0];
+          document.getElementById('content').innerText += '\n';
+        }
       }
     </script>
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
