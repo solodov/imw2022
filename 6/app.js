@@ -1,4 +1,11 @@
+/* exported gapiLoaded */
+/* exported gisLoaded */
+/* exported handleAuthClick */
+/* exported handleSignoutClick */
+
+// TODO(developer): Set to client ID and API key from the Developer Console
 const CLIENT_ID = '757615654795-4upi495dkd0svl99e4kikgtni4fhbpu5.apps.googleusercontent.com';
+// const API_KEY = '<YOUR_API_KEY>';
 
 // Discovery doc URL for APIs used by the quickstart
 const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
@@ -7,12 +14,12 @@ const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4'
 // included, separated by spaces.
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
-let map;
-let data;
-let infoWindows = [];
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
+
+document.getElementById('authorize_button').style.visibility = 'hidden';
+document.getElementById('signout_button').style.visibility = 'hidden';
 
 /**
  * Callback after api.js is loaded.
@@ -23,10 +30,11 @@ function gapiLoaded() {
 
 /**
  * Callback after the API client is loaded. Loads the
- * discovery doc to initialize the API.
+ * discovery doc to ini tialize the API.
  */
 async function intializeGapiClient() {
   await gapi.client.init({
+    // apiKey: API_KEY,
     discoveryDocs: [DISCOVERY_DOC],
   });
   gapiInited = true;
@@ -64,9 +72,9 @@ function handleAuthClick() {
       throw (resp);
     }
     document.getElementById('signout_button').style.visibility = 'visible';
-    document.getElementById('load_data_button').disabled = false;
+    document.getElementById('authorize_button').innerText = 'Refresh';
     document.getElementById('spreadsheet_url').disabled = false;
-    document.getElementById('authorize_button').innerText = 'Refresh Credentials';
+    document.getElementById('load_data_button').disabled = false;
   };
 
   if (gapi.client.getToken() === null) {
@@ -88,21 +96,23 @@ function handleSignoutClick() {
     google.accounts.oauth2.revoke(token.access_token);
     gapi.client.setToken('');
     document.getElementById('data_table').innerText = '';
+    document.getElementById('spreadsheet_url').disabled = true;
+    document.getElementById('load_data_button').disabled = true;
     document.getElementById('authorize_button').innerText = 'Authorize';
     document.getElementById('signout_button').style.visibility = 'hidden';
-    document.getElementById('load_data_button').disabled = true;
-    document.getElementById('spreadsheet_url').disabled = true;
   }
 }
 
 /**
- * Print data from the spreadsheet in the input box.
+ * Print the names and majors of students in a sample spreadsheet:
+ * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
  */
 async function loadData() {
   let response;
   const url = new URL(document.getElementById('spreadsheet_url').value);
   let spreadsheetId = url.pathname.split('/')[3];
   try {
+    // Fetch first 10 files
     response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetId,
       range: 'A2:J',
@@ -116,76 +126,19 @@ async function loadData() {
     document.getElementById('data_table').innerText = 'No values found.';
     return;
   }
-
-  // Preserve loaded data for later use.
-  data = range.values;
-  infoWindows.length = 0;
-
-  const tbl = document.createElement("table");
-  const tblBody = document.createElement("tbody");
-  for(let i = 0; i < range.values.length; i++) {
-    const lat = range.values[i][1];
-    const lon = range.values[i][2];
-    const latLng = new google.maps.LatLng(lat, lon);
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    var content =
-        `<p><b>${range.values[i][0]}</b></p>` +
-        `<p>EPA Program: <b>${range.values[i][3]}</b></p>` +
-        `<p>${range.values[i][4]}</p>` +
-        `<p>${range.values[i][5]}</p>` +
-        `<p>${range.values[i][6]}</p>` +
-        `<p>${range.values[i][7]}</p>`;
-    const infoWindow = new google.maps.InfoWindow({
-      content: content,
-      ariaLabel: range.values[i][0],
-    });
-    infoWindows.push(infoWindow);
-
-    const marker = new google.maps.Marker({
-      position: latLng,
-      map: map,
-      title: range.values[i][0],
-    });
-    marker.addListener("click", () => {
-      infoWindows.forEach(function (i) {
-        i.close();
-      });
-      infoWindow.open({
-        anchor: marker,
-        map,
-      });
-    })
-    let a = document.createElement('a');
-    a.appendChild(document.createTextNode(range.values[i][0]));
-    const link = `https://frs-public.epa.gov/ords/frs_public2/fii_query_dtl.disp_program_facility?p_registry_id=${range.values[i][9]}`;
-    a.addEventListener('click', function () {
-      document.getElementById('site_data').src = link;
-      map.setCenter(latLng);
-      map.setZoom(10);
-      infoWindows.forEach(function (i) {
-        i.close();
-      });
-      infoWindow.open({
-        anchor: marker,
-        map,
-      });
-    });
-
-    cell.appendChild(a);
-    row.appendChild(cell);
-    tblBody.appendChild(row);
-  }
-  tbl.appendChild(tblBody);
-
-  document.getElementById('data_table').innerHTML = '';
-  document.getElementById('data_table').appendChild(tbl);
+  // Flatten to string to display
+  const output = range.values.reduce(
+    (str, row) => `${str}${row[0]}, ${row[4]}\n`,
+    'Name, Major:\n');
+  document.getElementById('data_table').innerText = output;
 }
 
+let map;
+
 function initMap() {
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: {lat: -34.397, lng: 150.644},
-    zoom: 1
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: -34.397, lng: 150.644 },
+    zoom: 8,
   });
 }
 
